@@ -3,13 +3,14 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.chat_history import BaseChatMessageHistory, InMemoryChatMessageHistory
 from langchain_core.runnables import RunnableWithMessageHistory
 # from langchain_core.messages import SystemMessage
-from langchain_core.tools import tool
 from langchain.agents import create_tool_calling_agent, AgentExecutor
+from tools import multiply, add, exponentiate
+
 import streamlit as st
 import mlflow
 from datetime import datetime
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
 load_dotenv()
 
 # Set the MLflow tracking URI
@@ -18,28 +19,32 @@ mlflow.set_tracking_uri(uri=MLFLOW_TRACKING_SERVER)
 
 experiment_name = "experiment_"+datetime.now().strftime("%m_%d_%Y_%H_%M")
 
-
 if 'experiment_name' not in st.session_state:
     st.session_state.experiment_name = experiment_name
 
+mlflow.set_active_model(name="langchain_chat_groq_llama_3")
 mlflow.set_experiment(st.session_state.experiment_name)
-
 mlflow.langchain.autolog()
 
+
 messages = [
-    ('system', 'you are a chatbot application, keep answers short and limit to 2 sentences'),
+    ('system', 'you are a chatbot application, keep answers short and limit to 2 sentences. When tools are available use only the ones listed below \
+     {available_tools}, never call any external tool which is not listed'),
     MessagesPlaceholder(variable_name='history', n_messages=6),
-    ('human', '{question}')
+    ('human', '{question}'),
+    MessagesPlaceholder(variable_name='agent_scratchpad')
 ]
+
+available_tools = [multiply, add, exponentiate]
 
 chat_prompt = ChatPromptTemplate.from_messages(messages=messages)
 
 
 llm = ChatGroq(model="llama-3.3-70b-versatile",temperature=0.3, max_tokens=100)
 
-
-chain = chat_prompt | llm 
-
+# chain = chat_prompt | llm 
+agent_compose = create_tool_calling_agent(llm=llm, tools=available_tools, prompt=chat_prompt)
+chain = AgentExecutor(agent=agent_compose, tools=available_tools, verbose=True)
 
 st.title("ChatJPT 🚀")
 
@@ -57,10 +62,10 @@ for message in st.session_state.message_history:
 
 if question:
     st.chat_message("human").markdown(question)
-    response = chain.invoke({"question":question, 'history':st.session_state.message_history})
+    response = chain.invoke({'available_tools':available_tools, 'history':st.session_state.message_history, "question":question})
     st.session_state.message_history.append({'role':'human', 'content':question})
-    st.chat_message("assistant").markdown(response.content)
-    st.session_state.message_history.append({'role':'assistant', 'content':response.content})
+    st.chat_message("assistant").markdown(response['output'])
+    st.session_state.message_history.append({'role':'assistant', 'content':response['output']})
 
     # print("MESSAGE HIST: ",st.session_state.message_history)
     # print("CHAT PROMPT: ",chat_prompt.invoke({"question":question, 'history':st.session_state.message_history}))
