@@ -12,6 +12,7 @@ python-dotenv
 transformers
 torch
 langchain-huggingface
+langgraph
 huggingface_hub
 groq
 langchain-groq
@@ -20,3 +21,8 @@ sentence_transformers
 faiss-cpu
 streamlit
 qdrant_client
+langchain-mcp-adapters
+mcp
+asyncio
+mcp[cli]
+ddgs

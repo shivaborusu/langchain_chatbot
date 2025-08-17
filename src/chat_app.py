@@ -1,10 +1,12 @@
+
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.chat_history import BaseChatMessageHistory, InMemoryChatMessageHistory
 from langchain_core.runnables import RunnableWithMessageHistory
 # from langchain_core.messages import SystemMessage
 from langchain.agents import create_tool_calling_agent, AgentExecutor
-from tools import multiply, add, exponentiate
+from tools import multiply, add, exponentiate, web_search
+
 
 import streamlit as st
 import mlflow
@@ -22,20 +24,21 @@ experiment_name = "experiment_"+datetime.now().strftime("%m_%d_%Y_%H_%M")
 if 'experiment_name' not in st.session_state:
     st.session_state.experiment_name = experiment_name
 
-mlflow.set_active_model(name="langchain_chat_groq_llama_3")
 mlflow.set_experiment(st.session_state.experiment_name)
+mlflow.set_active_model(name="langchain_chat_groq_llama_3")
 mlflow.langchain.autolog()
 
 
 messages = [
-    ('system', 'you are a chatbot application, keep answers short and limit to 2 sentences. When tools are available use only the ones listed below \
+    ('system', 'you are a chatbot application, keep answers short and limit to 2 sentences. \
+     When tools are available use only the ones listed below \
      {available_tools}, never call any external tool which is not listed'),
     MessagesPlaceholder(variable_name='history', n_messages=6),
     ('human', '{question}'),
     MessagesPlaceholder(variable_name='agent_scratchpad')
 ]
 
-available_tools = [multiply, add, exponentiate]
+available_tools = [multiply, add, exponentiate, web_search()]
 
 chat_prompt = ChatPromptTemplate.from_messages(messages=messages)
 
@@ -62,14 +65,11 @@ for message in st.session_state.message_history:
 
 if question:
     st.chat_message("human").markdown(question)
-    response = chain.invoke({'available_tools':available_tools, 'history':st.session_state.message_history, "question":question})
+    response = chain.invoke({'available_tools':available_tools,
+                             'history':st.session_state.message_history, "question":question})
     st.session_state.message_history.append({'role':'human', 'content':question})
     st.chat_message("assistant").markdown(response['output'])
     st.session_state.message_history.append({'role':'assistant', 'content':response['output']})
 
     # print("MESSAGE HIST: ",st.session_state.message_history)
     # print("CHAT PROMPT: ",chat_prompt.invoke({"question":question, 'history':st.session_state.message_history}))
-
-
-# if st.button("Clear"):
-#     st.session_state.message_history = []
