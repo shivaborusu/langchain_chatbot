@@ -5,8 +5,8 @@ from langchain_core.chat_history import BaseChatMessageHistory, InMemoryChatMess
 from langchain_core.runnables import RunnableWithMessageHistory
 # from langchain_core.messages import SystemMessage
 from langchain.agents import create_tool_calling_agent, AgentExecutor
-from tools import multiply, add, exponentiate, web_search
-
+from tools import multiply, add, exponentiate
+from langchain_community.tools import BraveSearch
 
 import streamlit as st
 import mlflow
@@ -30,20 +30,25 @@ mlflow.langchain.autolog()
 
 
 messages = [
-    ('system', 'you are a chatbot application, keep answers short and limit to 2 sentences. \
-     When tools are available use only the ones listed below \
-     {available_tools}, never call any external tool which is not listed'),
+    ('system', 'you are a chatbot, keep answers short and limit to 4 sentences. \
+     When you do not have the required capabilities or you do not have the  \
+      context beyond your training cut off date use these tools, only one at a time \
+     {available_tools}. \
+     never call any tool which is not listed'),
     MessagesPlaceholder(variable_name='history', n_messages=6),
     ('human', '{question}'),
     MessagesPlaceholder(variable_name='agent_scratchpad')
 ]
 
-available_tools = [multiply, add, exponentiate, web_search()]
+brave_search = BraveSearch.from_api_key(api_key=os.environ.get('BRAVE_API_KEY'),
+                                 search_kwargs={"count": 1})
+
+available_tools = [multiply, add, exponentiate, brave_search]
 
 chat_prompt = ChatPromptTemplate.from_messages(messages=messages)
 
 
-llm = ChatGroq(model="llama-3.3-70b-versatile",temperature=0.3, max_tokens=100)
+llm = ChatGroq(model="llama-3.3-70b-versatile",temperature=0.3, max_tokens=300)
 
 # chain = chat_prompt | llm 
 agent_compose = create_tool_calling_agent(llm=llm, tools=available_tools, prompt=chat_prompt)
